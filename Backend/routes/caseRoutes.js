@@ -1,60 +1,65 @@
-import multer from "multer";
-import express from "express";
-import path from "path";
-import Case from "../models/Case.js";
+  import express from "express";
+  import upload from "../middleware/upload.js"; 
+  import Case from "../models/Case.js";
 
-const router = express.Router();
+  const router = express.Router();
 
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // store in uploads folder
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // unique filename
-  }
-});
+  // ✅ GET all cases
+  router.get("/", async (req, res) => {
+    try {
+      const cases = await Case.find();
+      res.status(200).json(cases);
+    } catch (err) {
+      console.error("❌ Error fetching cases:", err);
+      res.status(500).json({ message: "Server error", error: err.message });
+    }
+  });
 
-const upload = multer({ storage });
-
-// POST /api/cases/add
-
-router.post("/add", upload.array("documents"), async (req, res) => {
-  try {
-      const caseData = {
-        caseTitle: req.body.caseTitle,
-        caseDescription: req.body.caseDescription,
-        caseType: req.body.caseType,
-        clientName: req.body.clientName,
-        opponentName: req.body.opponentName,
-        courtName: req.body.courtName,
-        caseDate: req.body.caseDate,
-        caseStatus: req.body.caseStatus,
-        documents: req.files && req.files.length > 0
-          ? req.files.map(file => `/uploads/${file.filename}`)
-          : []
+  // ✅ POST new case
+  router.post("/", upload.array("documents"), async (req, res) => {
+    try {
+      const clientDetails = {
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        address: req.body.address,
+        idProofType: req.body.idProofType,
+        idProofNumber: req.body.idProofNumber
       };
 
-
-    const newCase = new Case(caseData);
-    await newCase.save();
-
-    res.status(201).json({ message: "Case created successfully", case: newCase });
-  } catch (error) {
-    console.error("Error creating case:", error);
-    res.status(500).json({ message: "Error creating case", error: error.message });
-  }
-});
-      // GET /api/cases - Fetch all cases
-    router.get("/", async (req, res) => {
-      try {
-        const cases = await Case.find().sort({ createdAt: -1 }); // latest first
-        res.json(cases);
-      } catch (error) {
-        console.error("Error fetching cases:", error);
-        res.status(500).json({ message: "Error fetching cases", error: error.message });
+      let actsSections = [];
+      if (req.body.actsSections) {
+        actsSections = JSON.parse(req.body.actsSections);
       }
-    });
 
+      const documents = (req.files || []).map((file, index) => ({
+        type: req.body[`docType_documents_${index}`] || "Other",
+        title: req.body[`docTitle_documents_${index}`] || file.originalname,
+        description: req.body[`docDesc_documents_${index}`] || "",
+        fileName: file.originalname,
+        // ✅ FIXED: store relative path for preview/download
+        filePath: `/uploads/${file.filename}`
+      }));
 
-export default router;
+      const newCase = new Case({
+        district: req.body.district,
+        taluk: req.body.taluk,
+        court: req.body.court,
+        caseType: req.body.caseType,
+        subject: req.body.subject,
+        description: req.body.description,
+        clientDetails,
+        actsSections,
+        documents,
+        createdBy: req.user?._id || null
+      });
+
+      await newCase.save();
+      res.status(201).json({ message: "Case created successfully", case: newCase });
+    } catch (err) {
+      console.error("❌ Error creating case:", err);
+      res.status(500).json({ message: "Server error", error: err.message });
+    }
+  });
+
+  export default router;

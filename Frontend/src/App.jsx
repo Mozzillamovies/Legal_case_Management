@@ -8,36 +8,32 @@ import {
 } from "react-router-dom";
 import CompactLegalAuthUI from "./auth/signup";
 import Home from "./pages/Home";
-import AddCase from './pages/Add_case';
-
+import AddCase from "./pages/Add_case";
+import Cases from "./pages/Cases";  // <-- Import Cases.jsx
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true); // <-- NEW
+  const [loading, setLoading] = useState(true);
   const location = useLocation();
 
-  // Only run once on app load
   useEffect(() => {
     const token = localStorage.getItem("token");
     setIsAuthenticated(!!token);
-    setLoading(false); // <-- done checking
+    setLoading(false);
   }, [location]);
 
   if (loading) {
-    return <div>Loading...</div>; // <-- or a spinner
+    return <div>Loading...</div>;
   }
 
   return (
     <Routes>
-      {/* Root route */}
       <Route
         path="/"
         element={<Navigate to={isAuthenticated ? "/home" : "/login"} />}
       />
-      
 
       {/* Login */}
-      
       <Route
         path="/login"
         element={
@@ -73,12 +69,17 @@ const App = () => {
         element={isAuthenticated ? <Home /> : <Navigate to="/login" />}
       />
 
-        {/* Add Case */}
-        <Route
-          path="/add-case"
-          element={isAuthenticated ? <AddCase /> : <Navigate to="/login" />}
-        />
+      {/* Add Case */}
+      <Route
+        path="/add-case"
+        element={isAuthenticated ? <AddCase /> : <Navigate to="/login" />}
+      />
 
+      {/* ✅ Cases Page */}
+      <Route
+        path="/cases"
+        element={isAuthenticated ? <Cases /> : <Navigate to="/login" />}
+      />
 
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" />} />
