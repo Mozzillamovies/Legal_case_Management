@@ -32,18 +32,17 @@ app.use(morgan("dev")); // Logging requests
 // ✅ Serve uploaded files for preview in browser
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Force download route (works with nested folders too)
 app.get("/download/*", (req, res) => {
-  // Remove '/download/' prefix and join with /uploads
-  const relativePath = req.params[0]; // everything after /download/
-  const file = path.join(__dirname, "uploads", relativePath);
+  const filePath = req.path.replace("/download/", "");
+  const file = path.join(__dirname, "uploads", decodeURIComponent(filePath));
 
   if (fs.existsSync(file)) {
-    res.download(file, path.basename(file)); // force download
+    res.download(file, path.basename(file));
   } else {
     res.status(404).json({ message: "❌ File not found" });
   }
 });
+
 
 
 // ---------- API ROUTES ----------

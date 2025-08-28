@@ -1,16 +1,48 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, createContext, useContext } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
-  useLocation
+  useLocation,
 } from "react-router-dom";
 import CompactLegalAuthUI from "./auth/signup";
 import Home from "./pages/Home";
 import AddCase from "./pages/Add_case";
-import Cases from "./pages/Cases";  // <-- Import Cases.jsx
+import Cases from "./pages/Cases"; // <-- Import Cases.jsx
 
+// ---------- THEME CONTEXT ----------
+const ThemeContext = createContext();
+
+export const useTheme = () => useContext(ThemeContext);
+
+const ThemeProvider = ({ children }) => {
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Load dark mode from localStorage when app starts
+  useEffect(() => {
+    const saved = localStorage.getItem("darkMode") === "true";
+    setDarkMode(saved);
+    document.body.classList.toggle("dark-mode", saved);
+  }, []);
+
+  const toggleDarkMode = () => {
+    setDarkMode((prev) => {
+      const newMode = !prev;
+      localStorage.setItem("darkMode", newMode);
+      document.body.classList.toggle("dark-mode", newMode);
+      return newMode;
+    });
+  };
+
+  return (
+    <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+// ---------- MAIN APP ----------
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -75,7 +107,7 @@ const App = () => {
         element={isAuthenticated ? <AddCase /> : <Navigate to="/login" />}
       />
 
-      {/* ✅ Cases Page */}
+      {/* Cases Page */}
       <Route
         path="/cases"
         element={isAuthenticated ? <Cases /> : <Navigate to="/login" />}
@@ -87,9 +119,12 @@ const App = () => {
   );
 };
 
+// ---------- APP WRAPPER ----------
 const AppWrapper = () => (
   <Router>
-    <App />
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </Router>
 );
 
