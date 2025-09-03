@@ -4,36 +4,35 @@ import {
   Routes,
   Route,
   Navigate,
-  useLocation,
 } from "react-router-dom";
 import CompactLegalAuthUI from "./auth/signup";
 import Home from "./pages/Home";
 import AddCase from "./pages/Add_case";
-import Cases from "./pages/Cases"; // <-- Import Cases.jsx
+import Cases from "./pages/Cases";
+import Notification from "./pages/Notification";
+import SettingsPage from "./components/Settings";
+import Profile from "./components/Profile";
+
 
 // ---------- THEME CONTEXT ----------
 const ThemeContext = createContext();
-
 export const useTheme = () => useContext(ThemeContext);
 
 const ThemeProvider = ({ children }) => {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(
+    localStorage.getItem("darkMode") === "true"
+  );
 
-  // Load dark mode from localStorage when app starts
   useEffect(() => {
-    const saved = localStorage.getItem("darkMode") === "true";
-    setDarkMode(saved);
-    document.body.classList.toggle("dark-mode", saved);
-  }, []);
+    if (darkMode) {
+      document.documentElement.classList.add("dark"); // Tailwind global dark
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("darkMode", darkMode);
+  }, [darkMode]);
 
-  const toggleDarkMode = () => {
-    setDarkMode((prev) => {
-      const newMode = !prev;
-      localStorage.setItem("darkMode", newMode);
-      document.body.classList.toggle("dark-mode", newMode);
-      return newMode;
-    });
-  };
+  const toggleDarkMode = () => setDarkMode((prev) => !prev);
 
   return (
     <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>
@@ -42,24 +41,20 @@ const ThemeProvider = ({ children }) => {
   );
 };
 
+// ---------- AUTH CHECK ----------
+const ProtectedRoute = ({ isAuthenticated, children }) => {
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
+
 // ---------- MAIN APP ----------
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const location = useLocation();
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    setIsAuthenticated(!!token);
-    setLoading(false);
-  }, [location]);
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    !!localStorage.getItem("token")
+  );
 
   return (
     <Routes>
+      {/* Default route */}
       <Route
         path="/"
         element={<Navigate to={isAuthenticated ? "/home" : "/login"} />}
@@ -95,23 +90,43 @@ const App = () => {
         }
       />
 
-      {/* Home */}
+      {/* Protected Pages */}
       <Route
         path="/home"
-        element={isAuthenticated ? <Home /> : <Navigate to="/login" />}
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <Home />
+          </ProtectedRoute>
+        }
       />
-
-      {/* Add Case */}
       <Route
         path="/add-case"
-        element={isAuthenticated ? <AddCase /> : <Navigate to="/login" />}
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <AddCase />
+          </ProtectedRoute>
+        }
       />
-
-      {/* Cases Page */}
       <Route
         path="/cases"
-        element={isAuthenticated ? <Cases /> : <Navigate to="/login" />}
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <Cases />
+          </ProtectedRoute>
+        }
       />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <Notification />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Settings (public or protected as you prefer) */}
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/profile" element={<Profile />} />
 
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" />} />
