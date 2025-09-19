@@ -1,65 +1,129 @@
-  import express from "express";
-  import upload from "../middleware/upload.js"; 
-  import Case from "../models/Case.js";
+import express from "express";
+import Case from "../models/Case.js";
 
-  const router = express.Router();
+const router = express.Router();
 
-  // ✅ GET all cases
-  router.get("/", async (req, res) => {
-    try {
-      const cases = await Case.find();
-      res.status(200).json(cases);
-    } catch (err) {
-      console.error("❌ Error fetching cases:", err);
-      res.status(500).json({ message: "Server error", error: err.message });
+// ------------------- CASE ROUTES -------------------
+
+// ✅ Get all cases
+router.get("/", async (req, res) => {
+  try {
+    const cases = await Case.find();
+    res.status(200).json(cases);
+  } catch (err) {
+    console.error("❌ Error fetching cases:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ Get a case by ID
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const foundCase = await Case.findById(id);
+
+    if (!foundCase) {
+      return res.status(404).json({ message: "Case not found" });
     }
-  });
 
-  // ✅ POST new case
-  router.post("/", upload.array("documents"), async (req, res) => {
-    try {
-      const clientDetails = {
-        name: req.body.name,
-        email: req.body.email,
-        phone: req.body.phone,
-        address: req.body.address,
-        idProofType: req.body.idProofType,
-        idProofNumber: req.body.idProofNumber
-      };
+    res.status(200).json(foundCase);
+  } catch (err) {
+    console.error("❌ Error fetching case:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
 
-      let actsSections = [];
-      if (req.body.actsSections) {
-        actsSections = JSON.parse(req.body.actsSections);
-      }
+// ✅ Create new case
+router.post("/", async (req, res) => {
+  try {
+    console.log("📩 Incoming payload:", JSON.stringify(req.body, null, 2));
 
-      const documents = (req.files || []).map((file, index) => ({
-        type: req.body[`docType_documents_${index}`] || "Other",
-        title: req.body[`docTitle_documents_${index}`] || file.originalname,
-        description: req.body[`docDesc_documents_${index}`] || "",
-        fileName: file.originalname,
-        // ✅ FIXED: store relative path for preview/download
-        filePath: `/uploads/${file.filename}`
-      }));
+    const newCase = new Case(req.body);
+    await newCase.save();
 
-      const newCase = new Case({
-        district: req.body.district,
-        taluk: req.body.taluk,
-        court: req.body.court,
-        caseType: req.body.caseType,
-        subject: req.body.subject,
-        description: req.body.description,
-        clientDetails,
-        actsSections,
-        documents,
-        createdBy: req.user?._id || null
+    res.status(201).json({ message: "Case created successfully", case: newCase });
+  } catch (err) {
+    console.error("❌ Error creating case:", err);
+
+    if (err.name === "ValidationError") {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: err.errors,
       });
-
-      await newCase.save();
-      res.status(201).json({ message: "Case created successfully", case: newCase });
-    } catch (err) {
-      console.error("❌ Error creating case:", err);
-      res.status(500).json({ message: "Server error", error: err.message });
     }
-  });
 
-  export default router;
+    if (err.code === 11000) {
+      return res.status(400).json({
+        message: "Duplicate caseNumber detected",
+        keyValue: err.keyValue,
+      });
+    }
+
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ Update entire case (used by EditCaseModal)
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedCase = await Case.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedCase) {
+      return res.status(404).json({ message: "Case not found" });
+    }
+
+    res.status(200).json(updatedCase);
+  } catch (err) {
+    console.error("❌ Error updating case:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ Update ONLY hearingDate + caseStatus (used by HearingUpdateModal)
+router.patch("/:id/hearing", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { hearingDate, caseStatus } = req.body;
+
+    const updatedCase = await Case.findByIdAndUpdate(
+      id,
+      {
+        caseStatus,
+        "clientDetails.hearingDate": hearingDate || null,
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedCase) {
+      return res.status(404).json({ message: "Case not found" });
+    }
+
+    res.status(200).json(updatedCase);
+  } catch (err) {
+    console.error("❌ Error updating hearing date:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ Delete case by ID
+router.delete("/:id", async (req, res) => {
+  try {
+    console.log("DELETE request for case:", req.params.id);
+    const deletedCase = await Case.findByIdAndDelete(req.params.id);
+
+    if (!deletedCase) {
+      return res.status(404).json({ message: "Case not found" });
+    }
+
+    res.status(200).json({ message: "Case deleted successfully" });
+  } catch (err) {
+    console.error("❌ Error deleting case:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+export default router;

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import ProfileMenu from "../components/ProfileMenu";
+import HelpSupportFooter from '../components/Help';
+
 import {
   FaFolderOpen,
   FaCog,
@@ -13,10 +15,8 @@ import {
   FaChevronRight,
   FaUser,
   FaCalendar,
+  FaBell,
 } from "react-icons/fa";
-
-
-
 
 export default function HomePage() {
   const [darkMode, setDarkMode] = useState(false);
@@ -26,7 +26,21 @@ export default function HomePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [user, setUser] = useState(null);
   const [navbarScrolled, setNavbarScrolled] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0); // Dynamic notification count
   const navigate = useNavigate();
+
+  // Load dark mode from localStorage
+  useEffect(() => {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+  }, []);
+
+  // Save dark mode to localStorage and sync
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    localStorage.setItem('darkMode', newDarkMode);
+  };
 
   // Fetch logged-in user from localStorage or API
   useEffect(() => {
@@ -59,20 +73,27 @@ export default function HomePage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Logout handler
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    sessionStorage.clear();
-    window.location.href = "/login";
-  };
-
-  // Fetch recent cases
+  // Fetch cases and calculate notifications
   useEffect(() => {
     const fetchCases = async () => {
       try {
         const res = await axios.get("http://localhost:5000/api/cases");
         setCases(res.data);
+        
+        // Calculate notifications based on upcoming hearings
+        const now = new Date();
+        const twoDaysFromNow = new Date();
+        twoDaysFromNow.setDate(now.getDate() + 2);
+        
+        const upcomingHearings = res.data.filter(c => {
+          if (c.clientDetails?.hearingDate) {
+            const hearingDate = new Date(c.clientDetails.hearingDate);
+            return hearingDate >= now && hearingDate <= twoDaysFromNow;
+          }
+          return false;
+        });
+        
+        setUnreadNotifications(upcomingHearings.length);
       } catch (err) {
         console.error("Error fetching cases:", err);
       } finally {
@@ -81,6 +102,14 @@ export default function HomePage() {
     };
     fetchCases();
   }, []);
+
+  // Logout handler
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    sessionStorage.clear();
+    window.location.href = "/login";
+  };
 
   const formatTime = (date) => {
     return date.toLocaleTimeString("en-US", {
@@ -163,20 +192,21 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Enhanced Dark Mode Toggle */}
+              {/* Enhanced Notification Button */}
               <button
-                onClick={() => setDarkMode(!darkMode)}
+                onClick={() => navigate("/notifications")}
                 className={`relative p-4 rounded-2xl transition-all duration-300 group overflow-hidden ${
                   darkMode
-                    ? "bg-gradient-to-br from-yellow-500/20 to-orange-500/20 text-yellow-400 hover:from-yellow-500/30 hover:to-orange-500/30 shadow-lg shadow-yellow-500/20 border border-yellow-500/30"
-                    : "bg-gradient-to-br from-gray-800/20 to-gray-900/20 text-gray-600 hover:from-gray-800/30 hover:to-gray-900/30 shadow-lg shadow-gray-800/20 border border-gray-300/30"
+                    ? "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400 hover:from-indigo-500/30 hover:to-purple-500/30 shadow-lg shadow-indigo-500/20 border border-indigo-500/30"
+                    : "bg-gradient-to-br from-blue-500/20 to-indigo-500/20 text-blue-600 hover:from-blue-500/30 hover:to-indigo-500/30 shadow-lg shadow-blue-500/20 border border-blue-500/30"
                 } hover:scale-110 hover:-translate-y-1`}
               >
                 <div className="relative z-10">
-                  {darkMode ? (
-                    <FaSun className="animate-spin text-xl" />
-                  ) : (
-                    <FaMoon className="text-xl group-hover:rotate-12 transition-transform duration-300" />
+                  <FaBell className="text-xl group-hover:animate-pulse" />
+                  {unreadNotifications > 0 && (
+                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce">
+                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                    </div>
                   )}
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
@@ -193,7 +223,7 @@ export default function HomePage() {
                     {/* Animated ring around profile */}
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full opacity-75 group-hover:opacity-100 animate-pulse"></div>
                     <div className={`relative ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-full p-1`}>
-                      <ProfileMenu user={user} setUser={setUser} />
+                      <ProfileMenu user={user} setUser={setUser} darkMode={darkMode} />
                     </div>
                     {/* Status indicator */}
                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full animate-pulse"></div>
@@ -222,68 +252,74 @@ export default function HomePage() {
       {/* Spacer for fixed header */}
       <div className="h-24"></div>
 
-      {/* Welcome Banner */}
-      <section className="px-8 py-16 text-center relative z-10 overflow-hidden">
-        {/* Animated SVG Background */}
-        <div className="absolute inset-0 z-0 opacity-20">
-          <svg
-            className="w-full h-full animate-pulse"
-            viewBox="0 0 800 600"
-            preserveAspectRatio="xMidYMid slice"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <pattern
-                id="legalPattern"
-                x="0"
-                y="0"
-                width="100"
-                height="100"
-                patternUnits="userSpaceOnUse"
-              >
-                <text
-                  x="10"
-                  y="60"
-                  fontSize="80"
-                  fontFamily="serif"
-                  fill="white"
-                  opacity="0.05"
-                >
-                  ⚖️
-                </text>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#legalPattern)" />
-          </svg>
+      {/* Enhanced Welcome Banner with Court Animation */}
+      <section className="px-6 py-16 text-center relative z-10 overflow-hidden">
+        {/* Soft Background Animation */}
+        <div className="absolute inset-0 z-0 opacity-10">
+          <div className="absolute top-12 left-12 text-6xl animate-bounce-slow">⚖️</div>
+          <div className="absolute bottom-16 right-16 text-5xl animate-float">🏛️</div>
         </div>
 
         <div className="relative z-10">
-          <div className="relative bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-3xl p-10 shadow-2xl">
-            <div className="flex items-center justify-center mb-4">
-              <div className="text-6xl animate-wave">👋</div>
-            </div>
-            <h2 className="text-4xl font-bold mb-4 animate-fadeInUp">Welcome Back</h2>
-            <p className="text-xl opacity-90 animate-fadeInUp delay-100">
-              Manage your cases efficiently and stay up to date
-            </p>
-            <div className="flex justify-center mt-6">
-              <div className="flex gap-2">
-                {[...Array(3)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-2 h-2 bg-white/50 rounded-full animate-bounce"
-                    style={{ animationDelay: `${i * 0.2}s` }}
-                  ></div>
-                ))}
+          <div
+            className={`relative rounded-3xl p-10 shadow-xl backdrop-blur-lg border transition-all duration-500 ${
+              darkMode
+                ? "bg-gradient-to-br from-gray-900/80 via-indigo-900/50 to-purple-900/60 border-gray-700/50 text-white"
+                : "bg-gradient-to-br from-white/90 via-blue-50/80 to-indigo-100/70 border-blue-200/50 text-gray-900"
+            }`}
+          >
+            {/* Gavel + Title */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="relative mb-4">
+                <div className="text-6xl animate-gavel-swing">🔨</div>
+                <div className="absolute -bottom-2 -right-3 text-2xl animate-pulse">⚖️</div>
               </div>
+
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
+                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                  Justice In Session
+                </span>
+              </h2>
+            </div>
+
+            {/* Welcome Text */}
+            <div className="text-lg sm:text-xl mb-3 animate-fade-in-up">
+              Welcome Back, {user?.name || "Counselor"} 👨‍⚖️
+            </div>
+            <p className="text-base sm:text-lg opacity-90 animate-fade-in-up delay-200 max-w-xl mx-auto leading-relaxed">
+              Your legal command center is ready. Manage cases with precision and modern efficiency.
+            </p>
+
+            {/* Quote */}
+            <div
+              className={`mt-8 p-4 rounded-lg italic text-base sm:text-lg animate-fade-in-up delay-500 ${
+                darkMode
+                  ? "bg-gray-800/50 border border-gray-600/30"
+                  : "bg-white/70 border border-blue-200/50"
+              }`}
+            >
+              <span className="text-blue-500 text-xl">"</span>
+              Justice delayed is justice denied
+              <span className="text-blue-500 text-xl">"</span>
+              <div className="text-xs mt-2 opacity-70">- William E. Gladstone</div>
+            </div>
+
+            {/* Status Dots */}
+            <div className="flex justify-center mt-8 gap-2">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.3}s` }}
+                ></div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-
       {/* Quick Actions */}
-      <section className="px-8 py-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
+      <section className="px-8 py-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 relative z-10">
         <ActionCard
           icon={<FaPlus />}
           title="Add Case"
@@ -305,15 +341,17 @@ export default function HomePage() {
           setHoveredCard={setHoveredCard}
         />
         <ActionCard
-          icon={<FaCog />}
-          title="Settings"
-          desc="Customize your preferences"
-          onClick={() => navigate("/settings")}
+          icon={<FaBell />}
+          title="Notifications"
+          desc="Check updates and alerts"
+          onClick={() => navigate("/notifications")}
           darkMode={darkMode}
           index={2}
           hoveredCard={hoveredCard}
           setHoveredCard={setHoveredCard}
+          badge={unreadNotifications}
         />
+
       </section>
 
       {/* Recent Activity */}
@@ -349,13 +387,100 @@ export default function HomePage() {
             <p className="text-gray-500">No recent activity found</p>
           </div>
         )}
+        
       </section>
+
+      <HelpSupportFooter darkMode={darkMode} />
+
+      {/* Custom CSS Animations */}
+      <style jsx>{`
+        @keyframes courthouse-entrance {
+          0% { transform: translateY(-20px) scale(0.8); opacity: 0; }
+          50% { transform: translateY(-10px) scale(1.1); opacity: 0.8; }
+          100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        @keyframes gavel-strike {
+          0%, 100% { transform: rotate(0deg) translateY(0); }
+          25% { transform: rotate(-15deg) translateY(-5px); }
+          50% { transform: rotate(15deg) translateY(-3px); }
+          75% { transform: rotate(-10deg) translateY(-2px); }
+        }
+        
+        @keyframes justice-scale {
+          0%, 100% { transform: scale(1) rotate(0deg); }
+          50% { transform: scale(1.1) rotate(5deg); }
+        }
+        
+        @keyframes court-title {
+          0% { opacity: 0; transform: translateY(30px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fade-in-up {
+          0% { opacity: 0; transform: translateY(20px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pillar-rise {
+          0% { height: 0; opacity: 0; }
+          100% { height: 80px; opacity: 0.3; }
+        }
+        
+        @keyframes pillar-rise-delayed {
+          0% { height: 0; opacity: 0; }
+          100% { height: 80px; opacity: 0.3; }
+        }
+        
+        @keyframes sparkle {
+          0%, 100% { opacity: 0; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        @keyframes sparkle-delayed {
+          0%, 100% { opacity: 0; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        @keyframes float-document {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-10px) rotate(5deg); }
+        }
+        
+        @keyframes float-document-delayed {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-8px) rotate(-3deg); }
+        }
+        
+        @keyframes success-pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.2); opacity: 0.7; }
+        }
+        
+        .animate-courthouse-entrance { animation: courthouse-entrance 2s ease-out; }
+        .animate-gavel-strike { animation: gavel-strike 2s ease-in-out infinite; }
+        .animate-justice-scale { animation: justice-scale 3s ease-in-out infinite; }
+        .animate-court-title { animation: court-title 1s ease-out; }
+        .animate-fade-in-up { animation: fade-in-up 0.8s ease-out forwards; }
+        .animate-pillar-rise { animation: pillar-rise 1.5s ease-out; }
+        .animate-pillar-rise-delayed { animation: pillar-rise-delayed 1.5s ease-out 0.3s; }
+        .animate-sparkle { animation: sparkle 2s ease-in-out infinite; }
+        .animate-sparkle-delayed { animation: sparkle-delayed 2s ease-in-out infinite 0.5s; }
+        .animate-float-document { animation: float-document 4s ease-in-out infinite; }
+        .animate-float-document-delayed { animation: float-document-delayed 4s ease-in-out infinite 1s; }
+        .animate-success-pulse { animation: success-pulse 2s ease-in-out infinite; }
+        
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-300 { animation-delay: 0.3s; }
+        .delay-500 { animation-delay: 0.5s; }
+        .delay-700 { animation-delay: 0.7s; }
+      `}</style>
     </div>
   );
 }
 
-function ActionCard({ icon, title, desc, onClick, darkMode, index, hoveredCard, setHoveredCard }) {
-  const colors = ['blue', 'green', 'purple'];
+function ActionCard({ icon, title, desc, onClick, darkMode, index, hoveredCard, setHoveredCard, badge }) {
+  const colors = ['blue', 'green', 'purple', 'indigo'];
   const color = colors[index];
   const isHovered = hoveredCard === index;
 
@@ -364,7 +489,7 @@ function ActionCard({ icon, title, desc, onClick, darkMode, index, hoveredCard, 
       onClick={onClick}
       onMouseEnter={() => setHoveredCard(index)}
       onMouseLeave={() => setHoveredCard(null)}
-      className={`cursor-pointer p-8 rounded-3xl shadow-xl backdrop-blur-lg border transition-all duration-500 transform group ${
+      className={`cursor-pointer p-8 rounded-3xl shadow-xl backdrop-blur-lg border transition-all duration-500 transform group relative ${
         darkMode 
           ? "bg-gray-800/50 border-gray-700 hover:bg-gray-800/70" 
           : "bg-white/70 border-gray-200 hover:bg-white/90"
@@ -374,8 +499,13 @@ function ActionCard({ icon, title, desc, onClick, darkMode, index, hoveredCard, 
       }}
     >
       <div className="flex flex-col items-center text-center relative">
-        <div className={`text-${color}-500 text-4xl mb-4 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12`}>
+        <div className={`text-${color}-500 text-4xl mb-4 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12 relative`}>
           {icon}
+          {badge && badge > 0 && (
+            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce">
+              {badge > 9 ? '9+' : badge}
+            </div>
+          )}
         </div>
         <h4 className="font-bold text-xl mb-2 group-hover:text-blue-500 transition-colors">
           {title}
